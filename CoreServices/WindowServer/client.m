@@ -24,6 +24,7 @@
 
 @interface Delegate : NSWindow {
     NSTextView *textfield;
+    NSImage *cursor;
 }
 @end
 
@@ -34,6 +35,7 @@
                               backing:NSBackingStoreRetained
                                 defer:NO];
     textfield = [[NSTextView alloc] initWithFrame:NSMakeRect(1,1,438,478)];
+
     return self;
 }
 
@@ -55,6 +57,9 @@
         [NSApp terminate:self];
     else
         [textfield insertText:[e characters]];
+}
+
+-(void)mouseMoved:(NSEvent *)e {
 }
 
 @end

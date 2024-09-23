@@ -495,9 +495,24 @@
     return winrec.number;
 }
 
+#define _cursor_height 24
 -(void)run {
     // FIXME: lock this to vsync of actual display
     O2BitmapContext *ctx = [fb context];
+
+    NSString *path = [[NSBundle mainBundle] pathForResource:@"arrowCursor" ofType:@"png"];
+    NSImage *cursor = [[NSImage alloc] initWithContentsOfFile:path];
+    O2BitmapContext *cursorCtx = [O2BitmapContext createWithBytes:[[cursor TIFFRepresentation] bytes]
+                                                            width:[cursor size].width
+                                                           height:[cursor size].height
+                                                 bitsPerComponent:8
+                                                      bytesPerRow:4*[cursor size].width
+                                                       colorSpace:[fb colorSpace]
+                                                       bitmapInfo:kCGBitmapByteOrder32Big|kCGImageAlphaLast
+                                                  releaseCallback:NULL
+                                                      releaseInfo:NULL];
+
+    NSRect cursorRect = NSMakeRect(0, 0, _cursor_height, _cursor_height);
 
     struct pollfd fds;
     fds.fd = [input fileDescriptor];
@@ -507,7 +522,7 @@
         if(poll(&fds, 1, 50) > 0)
             [input run:self];
 
-        O2ContextSetRGBFillColor(ctx, 0, 0, 0, 1);
+        O2ContextSetRGBFillColor(ctx, 0.2, 0.2, 0.2, 1);
         O2ContextFillRect(ctx, (O2Rect)_geometry);
         NSEnumerator *appEnum = [apps objectEnumerator];
         WSAppRecord *app;
@@ -520,6 +535,10 @@
                 [ctx drawImage:win.surface inRect:win.geometry];
             }
         }
+
+        cursorRect.origin = [input pointerPos];
+        cursorRect.origin.y -= _cursor_height; // make sure point of arrow is on actual spot
+        O2ContextDrawImage(ctx, cursorRect, [cursorCtx surface]);
 
         [fb draw];
     }
@@ -719,6 +738,8 @@
 }
 
 - (BOOL)sendEventToApp:(struct mach_event *)event {
+    if(curApp == nil)
+        return YES;
     event->windowID = curWindow.number; // fill in since WSInput doesn't have this info
     return [self sendInlineData:event
                          length:sizeof(struct mach_event)

@@ -9,7 +9,8 @@ RESOURCES=	${.CURDIR}/Icon.png \
 		${MAKEOBJDIR}/libinput/libinput.so.1 \
 		${MAKEOBJDIR}/libinput/libinput.so \
 		${MAKEOBJDIR}/libevdev/libevdev.so.2 \
-		${MAKEOBJDIR}/libevdev/libevdev.so 
+		${MAKEOBJDIR}/libevdev/libevdev.so \
+		${.CURDIR}/arrowCursor.png
 
 MK_WERROR=	no
 WARNS=	        1
