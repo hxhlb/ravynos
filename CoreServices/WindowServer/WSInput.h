@@ -27,6 +27,9 @@
 #include <xkbcommon/xkbcommon.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
+#undef direction
+#include <linux/input.h>
+
 static unichar translateKeySym(xkb_keysym_t keysym);
 
 static int open_restricted_cb(const char *path, int flags, void *data) {

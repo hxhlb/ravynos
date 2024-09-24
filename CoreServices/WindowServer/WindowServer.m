@@ -23,6 +23,7 @@
 #import <Onyx2D/O2Context.h>
 #import <Onyx2D/O2Surface.h>
 #import <Onyx2D/O2Image.h>
+#import <Onyx2D/O2ImageSource.h>
 #import <AppKit/NSAttributedString.h>
 #import <AppKit/NSColor.h>
 #import <AppKit/NSFont.h>
@@ -40,6 +41,24 @@
 #include <sys/sysctl.h>
 #include <sys/user.h>
 
+// all measurements in pixels
+static const float WSWindowTitleHeight = 32;
+static const float WSWindowEdgePad = 6;
+static const float WSWindowCornerRadius = 12;
+static const float WSWindowControlDiameter = 15;
+static const float WSWindowControlSpacing = 10;
+
+static NSRect WSOutsetFrame(NSRect rect, int style) {
+    if(style & NSBorderlessWindowMask)
+        return rect;
+
+    NSRect _frame = rect;
+    _frame.size.height += WSWindowTitleHeight;
+    _frame.size.width += WSWindowEdgePad;
+    _frame.origin.x -= WSWindowEdgePad;
+    _frame.origin.y -= WSWindowEdgePad;
+    return _frame;
+}
 
 @implementation WSAppRecord
 -init {
@@ -92,6 +111,7 @@
 
 -(void)setOrigin:(NSPoint)pos {
     _geometry.origin = pos;
+    _frame = WSOutsetFrame(_geometry, _styleMask);
 }
 
 -(void)drawFrame:(O2Context *)_context {
@@ -101,14 +121,8 @@
     O2ContextSetGrayStrokeColor(_context, 0.8, 1);
     O2ContextSetGrayFillColor(_context, 0.8, 1);
 
-    NSRect _frame = _geometry;
-    _frame.size.height += 27;
-    _frame.size.width += 6;
-    _frame.origin.x -= 6;
-    _frame.origin.y -= 6;
-
     // let's round these corners
-    float radius = 12;
+    float radius = WSWindowCornerRadius;
     O2ContextBeginPath(_context);
     O2ContextMoveToPoint(_context, _frame.origin.x+radius, NSMaxY(_frame));
     O2ContextAddArc(_context, _frame.origin.x + _frame.size.width - radius,
@@ -131,19 +145,19 @@
     O2ContextFillPath(_context);
 
     // window controls
-    int diameter = 12;
-    CGRect button = NSMakeRect(_frame.origin.x + 10, _frame.origin.y + _frame.size.height - 21,
-            diameter, diameter);
-    //_closeButtonRect = button;
+    CGRect button = NSMakeRect(_frame.origin.x + WSWindowControlSpacing,
+            _frame.origin.y + _frame.size.height - (WSWindowTitleHeight / 2),
+            WSWindowControlDiameter, WSWindowControlDiameter);
+    _closeButtonRect = button;
     O2ContextSetRGBFillColor(_context, 1, 0, 0, 1);
     O2ContextFillEllipseInRect(_context, button);
     O2ContextSetRGBFillColor(_context, 1, 0.9, 0, 1);
-    button.origin.x += 22;
-    //_miniButtonRect = button;
+    button.origin.x += WSWindowControlSpacing + WSWindowControlDiameter;
+    _miniButtonRect = button;
     O2ContextFillEllipseInRect(_context, button);
     O2ContextSetRGBFillColor(_context, 0, 1, 0, 1);
-    button.origin.x += 22;
-    //_zoomButtonRect = button;
+    button.origin.x += WSWindowControlSpacing + WSWindowControlDiameter;
+    _zoomButtonRect = button;
     O2ContextFillEllipseInRect(_context, button);
 
     // title
@@ -157,7 +171,7 @@
         NSSize size = [title size];
         NSRect titleRect = NSMakeRect(
             _frame.origin.x + (_frame.size.width / 2 - size.width / 2),
-            _frame.origin.y + (_frame.size.height - 30 + size.height / 2),
+            _frame.origin.y + (_frame.size.height - WSWindowTitleHeight + size.height / 2),
             size.width,
             size.height + 4);
         [title drawInRect:titleRect];
@@ -168,6 +182,12 @@
     return [NSString stringWithFormat:@"<%@ 0x%x> %@ %@ title:%@ state:%u style:0x%x",
            [self class], (uint32_t)self, self.shmPath, NSStringFromRect(self.geometry),
            self.title, self.state, self.styleMask];
+}
+
+-(void)moveByX:(double)x Y:(double)y {
+    _geometry.origin.x += x;
+    _geometry.origin.y += y;
+    _frame = WSOutsetFrame(_geometry, _styleMask);
 }
 
 @end
@@ -488,6 +508,7 @@
             height:data->h bitsPerComponent:8 bytesPerRow:4*(data->w)
             colorSpace:[fb colorSpace]
             bitmapInfo:kCGBitmapByteOrderDefault|kCGImageAlphaPremultipliedFirst];
+    winrec.frame = WSOutsetFrame(winrec.geometry, winrec.styleMask);
 
     [app addWindow:winrec];
     if(curApp == app)
@@ -501,17 +522,10 @@
     O2BitmapContext *ctx = [fb context];
 
     NSString *path = [[NSBundle mainBundle] pathForResource:@"arrowCursor" ofType:@"png"];
-    NSImage *cursor = [[NSImage alloc] initWithContentsOfFile:path];
-    O2BitmapContext *cursorCtx = [O2BitmapContext createWithBytes:[[cursor TIFFRepresentation] bytes]
-                                                            width:[cursor size].width
-                                                           height:[cursor size].height
-                                                 bitsPerComponent:8
-                                                      bytesPerRow:4*[cursor size].width
-                                                       colorSpace:[fb colorSpace]
-                                                       bitmapInfo:kCGBitmapByteOrder32Big|kCGImageAlphaLast
-                                                  releaseCallback:NULL
-                                                      releaseInfo:NULL];
-
+    NSData *cursorData = [NSData dataWithContentsOfFile:path];
+    O2ImageSource *cursorIS = [O2ImageSource newImageSourceWithData:(__bridge CFMutableDataRef)cursorData
+                                                            options:nil];
+    O2ImageRef cursor = [cursorIS createImageAtIndex:0 options:nil];
     NSRect cursorRect = NSMakeRect(0, 0, _cursor_height, _cursor_height);
 
     struct pollfd fds;
@@ -538,7 +552,8 @@
 
         cursorRect.origin = [input pointerPos];
         cursorRect.origin.y -= _cursor_height; // make sure point of arrow is on actual spot
-        O2ContextDrawImage(ctx, cursorRect, [cursorCtx surface]);
+        O2ContextSetBlendMode(ctx, kCGBlendModeNormal);
+        O2ContextDrawImage(ctx, cursorRect, cursor);
 
         [fb draw];
     }
@@ -737,10 +752,99 @@
     }
 }
 
+- (WSWindowRecord *)windowUnderPointer:(NSPoint)pos app:(WSAppRecord **)app {
+    NSEnumerator *appEnum = [apps objectEnumerator];
+    while((*app = [appEnum nextObject]) != nil) {
+        NSMutableArray *windows = [*app windows];
+        for(int w = 0; w < [windows count]; ++w) {
+            WSWindowRecord *win = [windows objectAtIndex:w];
+            if(NSPointInRect(pos, win.frame))
+                return win;
+        }
+    }
+    return nil;
+}
+
 - (BOOL)sendEventToApp:(struct mach_event *)event {
+    static BOOL inDrag = NO;
+    static WSWindowRecord *dragWindow = nil;
+
+    NSPoint pos = NSMakePoint(event->x, event->y);
+
+    /* Any key input goes to active window & app, even if pointer is over something else
+     * Otherwise, identify the window (if any) that is under the pointer. Windows on macOS
+     * seem to receive mouse and scroll inputs when not the active window.
+     */
+    WSAppRecord *app = nil;
+    WSWindowRecord *window = nil;
+    if(event->code == NSKeyDown || event->code == NSKeyUp)
+        event->windowID = curWindow.number; 
+    else
+        window = [self windowUnderPointer:pos app:&app];
+
+    // First, check if we want to handle this event ourselves!
+    switch(event->code) {
+        case NSLeftMouseDragged: {
+            // We are already dragging a window, so keep at it
+            if(inDrag && dragWindow != nil) {
+                NSLog(@"dragging window %@", dragWindow);
+                [dragWindow moveByX:event->dx Y:event->dy];
+                // FIXME: inform app of new window origin
+                return YES;
+            }
+
+            // Are we dragging a window at all?
+            if(window == nil)
+                return YES;
+
+            // Are we dragging the titlebar?
+            NSRect titleFrame = window.geometry;
+            titleFrame.origin.y += titleFrame.size.height;
+            titleFrame.size.height = WSWindowTitleHeight;
+            if(NSPointInRect(pos, titleFrame)) {
+                NSLog(@"start dragging window %@", window);
+                [window moveByX:event->dx Y:event->dy];
+                inDrag = YES;
+                dragWindow = window;
+                return YES;
+            }
+
+            // Handled all WS cases - send this to the window!
+            event->windowID = window.number;
+            break;
+        }
+        case NSLeftMouseDown: {
+            if(window == nil)
+                return YES;
+
+            if(NSPointInRect(pos, window.closeButtonRect)) {
+                NSLog(@"closing window %@", window);
+                // FIXME: send close message to window
+                return YES; // closing a window doesn't activate the app owning it
+            } else if(NSPointInRect(pos, window.miniButtonRect)) {
+                NSLog(@"miniaturizing window %@", window);
+                // FIXME: send mini message to window
+            } else if(NSPointInRect(pos, window.zoomButtonRect)) {
+                NSLog(@"zooming window %@", window);
+                // FIXME: send zoom message to window
+            }
+
+            // Handled all WS cases - send this to the window!
+            NSLog(@"clicked %@ of app %@", window, app);
+            curApp = app;
+            curWindow = window;
+            // FIXME: notify app of activation
+            break;
+        }
+        case NSLeftMouseUp: {
+            inDrag = NO;
+            dragWindow = nil;
+        }
+    }
+
     if(curApp == nil)
         return YES;
-    event->windowID = curWindow.number; // fill in since WSInput doesn't have this info
+
     return [self sendInlineData:event
                          length:sizeof(struct mach_event)
                        withCode:CODE_INPUT_EVENT

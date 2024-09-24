@@ -251,14 +251,16 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
             uint32_t state = libinput_event_pointer_get_button_state(pe);
             if(logLevel >= WS_INFO)
                 NSLog(@"Input event: type=BUTTON button=%u state=%u", button, state);
-            if(button == 0) // left
+            if(button == BTN_LEFT)
                 me.code = (state == 1) ? NSLeftMouseDown : NSLeftMouseUp;
-            else if(button == 1) // right?
+            else if(button == BTN_RIGHT)
                 me.code = (state == 1) ? NSRightMouseDown : NSRightMouseUp;
-            else if(button != 2) // middle?
+            else
                 return;
-            buttonDown[button] = (BOOL)state;
+            buttonDown[button == BTN_LEFT ? 0 : 1] = (BOOL)state;
             me.mods = [self modifierFlagsForState:xkb_state];
+            me.x = pointerX;
+            me.y = pointerY;
 
             [target sendEventToApp:&me];
             break;
@@ -266,6 +268,8 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
         case LIBINPUT_EVENT_POINTER_SCROLL_WHEEL:
         case LIBINPUT_EVENT_POINTER_SCROLL_FINGER:
         case LIBINPUT_EVENT_POINTER_SCROLL_CONTINUOUS:
+            if(logLevel >= WS_INFO)
+                NSLog(@"scroll event");
             break;
         case LIBINPUT_EVENT_NONE:
             return;
@@ -277,6 +281,10 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
         case LIBINPUT_EVENT_TOUCH_MOTION:
         case LIBINPUT_EVENT_TOUCH_CANCEL:
         case LIBINPUT_EVENT_TOUCH_FRAME:
+            if(logLevel >= WS_INFO)
+                NSLog(@"touch event");
+            break;
+
         case LIBINPUT_EVENT_GESTURE_SWIPE_BEGIN:
         case LIBINPUT_EVENT_GESTURE_SWIPE_UPDATE:
         case LIBINPUT_EVENT_GESTURE_SWIPE_END:
@@ -285,6 +293,8 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
         case LIBINPUT_EVENT_GESTURE_PINCH_END:
         case LIBINPUT_EVENT_GESTURE_HOLD_BEGIN:
         case LIBINPUT_EVENT_GESTURE_HOLD_END:
+            if(logLevel >= WS_INFO)
+                NSLog(@"gesture event");
             return;
 
         default:

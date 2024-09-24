@@ -54,11 +54,15 @@
 @property size_t bufSize;               // size of surfaceBuf (bytes)
 @property O2Surface *surface;           // rendering surface
 @property enum WindowState state;       // state
-@property NSRect geometry;              // position and size
+@property NSRect geometry;              // position and size of client window
+@property NSRect frame;                 // position and size with decorations
 @property NSString *title;              // titlebar string
 @property NSImage *icon;                // window icon
 @property NSString *shmPath;
 @property int styleMask;                // NSWindow style flags
+@property(readonly) NSRect closeButtonRect;
+@property(readonly) NSRect miniButtonRect;
+@property(readonly) NSRect zoomButtonRect;
 
 -(void)dealloc;
 -(void)setOrigin:(NSPoint)pos;
