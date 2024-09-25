@@ -180,8 +180,6 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
                                 NSLog(@"WINDOW_CREATED: ID %u, not found in window list!", _id);
                                 break;
                             }
-                            NSLog(@"WINDOW_CREATED: ID %u object %@ %.0f,%.0f %.0fx%.0f title %s",
-                                    _id, window, data->x, data->y, data->w, data->h, data->title);
                             int counter = 0;
                             while([window platformWindow] == nil && counter < 2000000) {
                                 usleep(1000);
@@ -193,7 +191,21 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
                                          NSMakeSize(data->w, data->h) forceRebuild:YES];
                             break;
                         }
-
+                        case CODE_WINDOW_STATE: {
+                            if(msg.len != sizeof(struct mach_win_data)) {
+                                NSLog(@"Incorrect data size in window state change: %d vs %d", msg.len, sizeof(struct mach_win_data));
+                                break;
+                            }
+                            struct mach_win_data *data = (struct mach_win_data *)msg.data;
+                            int _id = data->windowID;
+                            NSWindow *window = [self windowWithWindowNumber:_id];
+                            if(window == nil) {
+                                NSLog(@"WINDOW_STATE: ID %u, not found in window list!", _id);
+                                break;
+                            }
+                            [window processStateUpdate:data];
+                            break;
+                        }
                         case CODE_INPUT_EVENT: {
                             struct mach_event me;
                             if(msg.len != sizeof(me)) {

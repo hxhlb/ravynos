@@ -47,6 +47,13 @@
 #import "BSDFramebuffer.h"
 #import "WSInput.h"
 
+extern const float WSWindowTitleHeight;
+extern const float WSWindowEdgePad;
+extern const float WSWindowCornerRadius;
+extern const float WSWindowControlDiameter;
+extern const float WSWindowControlSpacing;
+
+NSRect WSOutsetFrame(NSRect rect, int style);
 
 @interface WSWindowRecord : NSObject
 @property int number;                   // internal window ID
@@ -66,6 +73,9 @@
 
 -(void)dealloc;
 -(void)setOrigin:(NSPoint)pos;
+-(void)drawFrame:(O2Context *)_context;
+-(void)moveByX:(double)x Y:(double)y;
+
 @end
 
 @interface WSAppRecord : NSObject {

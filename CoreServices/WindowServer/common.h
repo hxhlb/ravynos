@@ -31,9 +31,3 @@ enum {
 enum ShellType {
     NONE, LOGINWINDOW, DESKTOP
 };
-
-/* this must be in sync with actual NSWindow state */
-enum WindowState {
-    NORMAL, MAXVERT, MAXHORIZ, MAXIMIZED, MINIMIZED, HIDDEN, WIN_STATE_MAX
-};
-

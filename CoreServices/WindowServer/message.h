@@ -78,6 +78,12 @@ enum {
 };
 
 
+/* this must be in sync with actual NSWindow state */
+enum WindowState {
+    NORMAL, CLOSED, MAXVERT, MAXHORIZ, MAXIMIZED, MINIMIZED, HIDDEN, WIN_STATE_MAX
+};
+
+
 /* Display info */
 struct mach_display_info {
     uint32_t screens;           // how many screens we have

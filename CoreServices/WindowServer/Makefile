@@ -4,6 +4,8 @@ APP=	        WindowServer
 SRCS=           WindowServer.m \
                 BSDFramebuffer.m \
 		WSInput.m \
+		WSAppRecord.m \
+		WSWindowRecord.m \
 		main.m
 RESOURCES=	${.CURDIR}/Icon.png \
 		${MAKEOBJDIR}/libinput/libinput.so.1 \

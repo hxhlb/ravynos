@@ -48,6 +48,7 @@ SOFTWARE. */
 #import <AppKit/NSDisplay.h>
 #import <AppKit/NSRaise.h>
 #import <unistd.h>
+#import <WindowServer/message.h>
 
 NSString * const NSWindowDidBecomeKeyNotification=@"NSWindowDidBecomeKeyNotification";
 NSString * const NSWindowDidResignKeyNotification=@"NSWindowDidResignKeyNotification";
@@ -331,9 +332,9 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
 
     struct mach_win_data windat = {
         (uint32_t)self, _frame.origin.x, _frame.origin.y,
-        _frame.size.width, _frame.size.height, _styleMask, 0, '\0'
+        _frame.size.width, _frame.size.height, _styleMask, NORMAL, '\0'
     };
-    strncpy(windat.title, [_title cString], sizeof(windat.title));
+    strncpy(windat.title, [_title UTF8String], sizeof(windat.title));
 
     Message msgi = {0};
     msgi.header.msgh_remote_port = [NSApp _wsServicePort];
@@ -351,6 +352,39 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
         NSLog(@"Failed to send window message to WS");
 
    return self;
+}
+
+-(void)updateWSState {
+    struct mach_win_data windat = {
+        (uint32_t)self, _frame.origin.x, _frame.origin.y,
+        _frame.size.width, _frame.size.height, _styleMask, NORMAL, '\0'
+    };
+    strncpy(windat.title, [_title UTF8String], sizeof(windat.title));
+    if([self isMiniaturized])
+        windat.state = MINIMIZED;
+    else if([self isZoomed])
+        windat.state = MAXIMIZED;
+    else if([self isVisible] == NO)
+        windat.state = HIDDEN;
+
+    NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
+    if(bundleID == nil)
+        bundleID = [NSString stringWithFormat:@"unix.%u", getpid()];
+
+    Message msgi = {0};
+    msgi.header.msgh_remote_port = [NSApp _wsServicePort];
+    msgi.header.msgh_bits = MACH_MSGH_BITS_SET(MACH_MSG_TYPE_COPY_SEND, 0, 0, 0);
+    msgi.header.msgh_id = MSG_ID_INLINE;
+    msgi.header.msgh_size = sizeof(msgi);
+    msgi.code = CODE_WINDOW_STATE;
+    msgi.pid = getpid();
+    strncpy(msgi.bundleID, [bundleID cString], sizeof(msgi.bundleID));
+    memcpy(msgi.data, &windat, sizeof(windat));
+    msgi.len = sizeof(windat);
+
+    if(mach_msg((mach_msg_header_t *)&msgi, MACH_SEND_MSG|MACH_SEND_TIMEOUT, sizeof(msgi), 0,
+                MACH_PORT_NULL, 1000, MACH_PORT_NULL) != MACH_MSG_SUCCESS)
+        NSLog(@"Failed to send window message to WS");
 }
 
 // FIX, relocate contentRect
@@ -400,6 +434,7 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
     title=[@"* " stringByAppendingString:title];
 
    [_platformWindow setTitle:title];
+   [self updateWSState];
 }
 
 /*
@@ -3211,6 +3246,39 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
 
 -(void)requestResize:(NSEvent *)event {
     [[self platformWindow] requestResize:event];
+}
+
+// WindowServer wants us to do something...
+-(void)processStateUpdate:(struct mach_win_data *)data {
+    switch(data->state) {
+        case NORMAL:
+            [self setVisible:YES];
+            if([self isMiniaturized])
+                [self deminiaturize:self];
+            if([self isZoomed])
+                [self zoom:self];
+            break;
+        case MAXIMIZED:
+            if(![self isZoomed])
+                [self zoom:self];
+            break;
+        case MINIMIZED:
+            if(![self isMiniaturized])
+                [self miniaturize:self];
+            break;
+        case HIDDEN:
+            [self setVisible:NO];
+            break;
+        case CLOSED:
+            [self performClose:self];
+            return;
+    }
+
+    NSRect geom = NSMakeRect(data->x, data->y, data->w, data->h);
+
+    if(_styleMask != data->style)
+        [self setStyleMask:data->style];
+    [self setFrame:geom];
 }
 
 @end

@@ -41,157 +41,6 @@
 #include <sys/sysctl.h>
 #include <sys/user.h>
 
-// all measurements in pixels
-static const float WSWindowTitleHeight = 32;
-static const float WSWindowEdgePad = 6;
-static const float WSWindowCornerRadius = 12;
-static const float WSWindowControlDiameter = 15;
-static const float WSWindowControlSpacing = 10;
-
-static NSRect WSOutsetFrame(NSRect rect, int style) {
-    if(style & NSBorderlessWindowMask)
-        return rect;
-
-    NSRect _frame = rect;
-    _frame.size.height += WSWindowTitleHeight;
-    _frame.size.width += WSWindowEdgePad;
-    _frame.origin.x -= WSWindowEdgePad;
-    _frame.origin.y -= WSWindowEdgePad;
-    return _frame;
-}
-
-@implementation WSAppRecord
--init {
-    _windows = [NSMutableArray new];
-    return self;
-}
-
--(void)addWindow:(WSWindowRecord *)window {
-    [_windows addObject:window];
-}
-
--(void)removeWindowWithID:(int)number {
-    for(int i = 0; i < [_windows count]; i++) {
-        WSWindowRecord *r = [_windows objectAtIndex:i];
-        if(r.number == number) {
-            [_windows removeObjectAtIndex:i];
-            return;
-        }
-    }
-}
-
--(WSWindowRecord *)windowWithID:(int)number {
-    for(int i = 0; i < [_windows count]; i++) {
-        WSWindowRecord *r = [_windows objectAtIndex:i];
-        if(r.number == number) {
-            return r;
-        }
-    }
-    return nil;
-}
-
--(NSMutableArray *)windows {
-    return _windows;
-}
-
--(NSString *)description {
-    return [NSString stringWithFormat:@"<%@ 0x%x> %@ pid:%u port:%u windows:%u",
-           [self class], (uint32_t)self, self.bundleID, self.pid, self.port,
-           [[self windows] count]];
-}
-
-@end
-
-@implementation WSWindowRecord
--(void)dealloc {
-    if(_surfaceBuf != NULL)
-        munmap(_surfaceBuf, _bufSize);
-    shm_unlink([_shmPath cString]);
-}
-
--(void)setOrigin:(NSPoint)pos {
-    _geometry.origin = pos;
-    _frame = WSOutsetFrame(_geometry, _styleMask);
-}
-
--(void)drawFrame:(O2Context *)_context {
-    if((_styleMask & 0x0FFF) == NSBorderlessWindowMask)
-        return;
-    
-    O2ContextSetGrayStrokeColor(_context, 0.8, 1);
-    O2ContextSetGrayFillColor(_context, 0.8, 1);
-
-    // let's round these corners
-    float radius = WSWindowCornerRadius;
-    O2ContextBeginPath(_context);
-    O2ContextMoveToPoint(_context, _frame.origin.x+radius, NSMaxY(_frame));
-    O2ContextAddArc(_context, _frame.origin.x + _frame.size.width - radius,
-        _frame.origin.y + _frame.size.height - radius, radius, 1.5708 /*radians*/,
-        0 /*radians*/, YES);
-    O2ContextAddLineToPoint(_context, _frame.origin.x + _frame.size.width,
-        _frame.origin.y);
-    O2ContextAddArc(_context, _frame.origin.x + _frame.size.width - radius,
-        _frame.origin.y + radius, radius, 6.28319 /*radians*/, 4.71239 /*radians*/,
-        YES);
-    O2ContextAddLineToPoint(_context, _frame.origin.x, _frame.origin.y);
-    O2ContextAddArc(_context, _frame.origin.x + radius, _frame.origin.y + radius,
-        radius, 4.71239, 3.14159, YES);
-    O2ContextAddLineToPoint(_context, _frame.origin.x,
-        _frame.origin.y + _frame.size.height);
-    O2ContextAddArc(_context, _frame.origin.x + radius, _frame.origin.y +
-        _frame.size.height - radius, radius, 3.14159, 1.5708, YES);
-    O2ContextAddLineToPoint(_context, _frame.origin.x, NSMaxY(_frame));
-    O2ContextClosePath(_context);
-    O2ContextFillPath(_context);
-
-    // window controls
-    CGRect button = NSMakeRect(_frame.origin.x + WSWindowControlSpacing,
-            _frame.origin.y + _frame.size.height - (WSWindowTitleHeight / 2),
-            WSWindowControlDiameter, WSWindowControlDiameter);
-    _closeButtonRect = button;
-    O2ContextSetRGBFillColor(_context, 1, 0, 0, 1);
-    O2ContextFillEllipseInRect(_context, button);
-    O2ContextSetRGBFillColor(_context, 1, 0.9, 0, 1);
-    button.origin.x += WSWindowControlSpacing + WSWindowControlDiameter;
-    _miniButtonRect = button;
-    O2ContextFillEllipseInRect(_context, button);
-    O2ContextSetRGBFillColor(_context, 0, 1, 0, 1);
-    button.origin.x += WSWindowControlSpacing + WSWindowControlDiameter;
-    _zoomButtonRect = button;
-    O2ContextFillEllipseInRect(_context, button);
-
-    // title
-    if(_title) {
-        NSDictionary *attrs = @{
-            NSFontAttributeName : [NSFont systemFontOfSize:15.0], // FIXME: should be titleBarFontOfSize
-            NSForegroundColorAttributeName : [NSColor whiteColor],
-            NSBackgroundColorAttributeName : [NSColor redColor]
-        };
-        NSAttributedString *title = [[NSAttributedString alloc] initWithString:_title attributes:attrs];
-        NSSize size = [title size];
-        NSRect titleRect = NSMakeRect(
-            _frame.origin.x + (_frame.size.width / 2 - size.width / 2),
-            _frame.origin.y + (_frame.size.height - WSWindowTitleHeight + size.height / 2),
-            size.width,
-            size.height + 4);
-        [title drawInRect:titleRect];
-    }
-}
-
--(NSString *)description {
-    return [NSString stringWithFormat:@"<%@ 0x%x> %@ %@ title:%@ state:%u style:0x%x",
-           [self class], (uint32_t)self, self.shmPath, NSStringFromRect(self.geometry),
-           self.title, self.state, self.styleMask];
-}
-
--(void)moveByX:(double)x Y:(double)y {
-    _geometry.origin.x += x;
-    _geometry.origin.y += y;
-    _frame = WSOutsetFrame(_geometry, _styleMask);
-}
-
-@end
-
 @implementation WindowServer
 
 -init {
@@ -462,6 +311,11 @@ static NSRect WSOutsetFrame(NSRect rect, int style) {
         data->state = NORMAL;
     }
 
+    if([app windowWithID:data->windowID] != nil) {
+        NSLog(@"windowCreate cannot create existing window ID %u for %@", data->windowID, app);
+        return 0;
+    }
+
     WSWindowRecord *winrec = [WSWindowRecord new];
     winrec.number = data->windowID;
     winrec.state = data->state;
@@ -514,6 +368,24 @@ static NSRect WSOutsetFrame(NSRect rect, int style) {
     if(curApp == app)
         curWindow = winrec; // FIXME: is this how macOS behaves?
     return winrec.number;
+}
+
+-(void)windowModify:(struct mach_win_data *)data forApp:(WSAppRecord *)app {
+    if(data->state < 0 || data->state >= WIN_STATE_MAX) {
+        NSLog(@"windowModify called with invalid state");
+        data->state = NORMAL;
+    }
+
+    WSWindowRecord *winrec = [app windowWithID:data->windowID];
+    NSLog(@"windowModify %@ win %@", app, winrec);
+    winrec.state = data->state;
+    winrec.styleMask = data->style;
+    // FIXME: this will probably require changing the surface and shm buffer
+    winrec.geometry = NSMakeRect(data->x, data->y, data->w, data->h); // FIXME: bounds check?
+    int len = 0;
+    while(data->title[len] != '\0' && len < sizeof(data->title)) ++len;
+    winrec.title = [NSString stringWithCString:data->title length:len];
+    winrec.icon = nil;
 }
 
 #define _cursor_height 24
@@ -705,24 +577,37 @@ static NSRect WSOutsetFrame(NSRect rect, int style) {
                     if(logLevel >= WS_INFO)
                         NSLog(@"CODE_WINDOW_CREATE bundle %s pid %u ID %u", msg.msg.bundleID,
                                 msg.msg.pid, data->windowID);
-                    NSEnumerator *appEnum = [apps objectEnumerator];
-                    WSAppRecord *app;
-                    while((app = [appEnum nextObject]) != nil) {
-                        if(app.pid == msg.msg.pid) {
-                            struct mach_win_data reply;
-                            memcpy(&reply, data, sizeof(reply));
-                            reply.windowID = [self windowCreate:data forApp:app];
-                            [self sendInlineData:&reply
-                                          length:sizeof(struct mach_win_data)
-                                        withCode:CODE_WINDOW_CREATED
-                                           toApp:app];
-                            return;
-                        }
+                    WSAppRecord *app = [apps objectForKey:[NSString stringWithCString:msg.msg.bundleID]];
+                    if(app != nil) {
+                        struct mach_win_data reply;
+                        memcpy(&reply, data, sizeof(reply));
+                        reply.windowID = [self windowCreate:data forApp:app];
+                        [self sendInlineData:&reply
+                                      length:sizeof(struct mach_win_data)
+                                    withCode:CODE_WINDOW_CREATED
+                                       toApp:app];
+                        return;
                     }
-                    NSLog(@"No matching PID for WINDOW_CREATE! %u", msg.msg.pid);
+                    NSLog(@"No matching app for WINDOW_CREATE! %s %u", msg.msg.bundleID, msg.msg.pid);
                     break;
                 }
-                break;
+                case CODE_WINDOW_STATE: {
+                    if(msg.msg.len != sizeof(struct mach_win_data)) {
+                        NSLog(@"Incorrect data size for WINDOW_STATE");
+                        break;
+                    }
+                    struct mach_win_data *data = (struct mach_win_data *)msg.msg.data;
+                    if(logLevel >= WS_INFO)
+                        NSLog(@"CODE_WINDOW_STATE bundle %s pid %u ID %u", msg.msg.bundleID,
+                                msg.msg.pid, data->windowID);
+                    WSAppRecord *app = [apps objectForKey:[NSString stringWithCString:msg.msg.bundleID]];
+                    if(app != nil) {
+                        [self windowModify:data forApp:app];
+                        return;
+                    }
+                    NSLog(@"No matching app for WINDOW_STATE! %s %u", msg.msg.bundleID, msg.msg.pid);
+                    break;
+                }
         }
     }
 }
@@ -737,8 +622,12 @@ static NSRect WSOutsetFrame(NSRect rect, int style) {
             case EVFILT_PROC:
                 if((out[i].fflags & NOTE_EXIT)) {
                     //NSLog(@"PID %lu exited", out[i].ident);
-                    [self switchApp];
                     WSAppRecord *app = [self findAppByPID:out[i].ident];
+                    if(app != nil && curApp == app) {
+                        [self switchApp];
+                        if(curApp == app)
+                            curApp = nil; // there was nothing to switch to
+                    }
                     if(app == nil)
                         NSLog(@"PID %u exited, but no matching app record", out[i].ident);
                     else
@@ -787,9 +676,8 @@ static NSRect WSOutsetFrame(NSRect rect, int style) {
         case NSLeftMouseDragged: {
             // We are already dragging a window, so keep at it
             if(inDrag && dragWindow != nil) {
-                NSLog(@"dragging window %@", dragWindow);
                 [dragWindow moveByX:event->dx Y:event->dy];
-                // FIXME: inform app of new window origin
+                [self updateClientWindowState:dragWindow];
                 return YES;
             }
 
@@ -802,8 +690,8 @@ static NSRect WSOutsetFrame(NSRect rect, int style) {
             titleFrame.origin.y += titleFrame.size.height;
             titleFrame.size.height = WSWindowTitleHeight;
             if(NSPointInRect(pos, titleFrame)) {
-                NSLog(@"start dragging window %@", window);
                 [window moveByX:event->dx Y:event->dy];
+                [self updateClientWindowState:window];
                 inDrag = YES;
                 dragWindow = window;
                 return YES;
@@ -817,16 +705,21 @@ static NSRect WSOutsetFrame(NSRect rect, int style) {
             if(window == nil)
                 return YES;
 
+            // these are just requests - the client can ignore them, so we don't
+            // actually change the window until it sends us a new state message
             if(NSPointInRect(pos, window.closeButtonRect)) {
                 NSLog(@"closing window %@", window);
-                // FIXME: send close message to window
+                window.state = CLOSED;
+                [self updateClientWindowState:window];
                 return YES; // closing a window doesn't activate the app owning it
             } else if(NSPointInRect(pos, window.miniButtonRect)) {
                 NSLog(@"miniaturizing window %@", window);
-                // FIXME: send mini message to window
+                window.state = MINIMIZED;
+                [self updateClientWindowState:window];
             } else if(NSPointInRect(pos, window.zoomButtonRect)) {
                 NSLog(@"zooming window %@", window);
-                // FIXME: send zoom message to window
+                window.state = MAXIMIZED;
+                [self updateClientWindowState:window];
             }
 
             // Handled all WS cases - send this to the window!
@@ -849,6 +742,33 @@ static NSRect WSOutsetFrame(NSRect rect, int style) {
                          length:sizeof(struct mach_event)
                        withCode:CODE_INPUT_EVENT
                           toApp:curApp];
+}
+
+- (void)updateClientWindowState:(WSWindowRecord *)window {
+    struct mach_win_data data = {0};
+    data.windowID = window.number;
+    data.x = window.geometry.origin.x;
+    data.y = window.geometry.origin.y;
+    data.w = window.geometry.size.width;
+    data.h = window.geometry.size.height;
+    data.style = window.styleMask;
+    data.state = window.state;
+    // title is ignored - only client can set it
+
+    const char *appKey = [window.shmPath cString];
+    char *key = appKey + 1;
+    while(*key != '/' && *key != '\0')
+        key++;
+    int len = key - (appKey + 1);
+    key = malloc(len+1);
+    memcpy(key, appKey+1, len);
+    key[len] = 0;
+
+    WSAppRecord *app = [apps objectForKey:[NSString stringWithCString:key]];
+    if(app)
+        [self sendInlineData:&data length:sizeof(data) withCode:CODE_WINDOW_STATE toApp:app];
+    else
+        NSLog(@"Cannot send window state update to app: not found. %@", window);
 }
 
 - (BOOL)sendInlineData:(void *)data length:(int)length withCode:(int)code toApp:(WSAppRecord *)app {

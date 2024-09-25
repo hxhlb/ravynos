@@ -211,9 +211,7 @@ void CGNativeBorderFrameWidthsForStyle(unsigned styleMask,CGFloat *top,CGFloat *
 
 -(void) setTitle:(NSString *)title
 {
-    //if(xdg_toplevel)
-    //    xdg_toplevel_set_title(xdg_toplevel, [title UTF8String]);
-    // FIXME: send a "window modify" message to WS
+    return;
 }
 
 -(BOOL) setProperty:(NSString *)property toValue:(NSString *)value
