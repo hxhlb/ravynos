@@ -40,6 +40,7 @@
 }
 
 -(void)applicationWillFinishLaunching:(NSNotification *)note {
+    [super setTitle:@"Client App Demo"];
     NSView *v = [self contentView];
     [v addSubview:textfield];
     [textfield setEditable:YES];

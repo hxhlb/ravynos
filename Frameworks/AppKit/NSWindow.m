@@ -3252,7 +3252,7 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
 -(void)processStateUpdate:(struct mach_win_data *)data {
     switch(data->state) {
         case NORMAL:
-            [self setVisible:YES];
+            [self _setVisible:YES];
             if([self isMiniaturized])
                 [self deminiaturize:self];
             if([self isZoomed])
@@ -3267,7 +3267,7 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
                 [self miniaturize:self];
             break;
         case HIDDEN:
-            [self setVisible:NO];
+            [self _setVisible:NO];
             break;
         case CLOSED:
             [self performClose:self];

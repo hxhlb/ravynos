@@ -324,6 +324,16 @@
     int len = 0;
     while(data->title[len] != '\0' && len < sizeof(data->title)) ++len;
     winrec.title = [NSString stringWithCString:data->title length:len];
+    if(len > 0) {
+        CGGlyph glyphs[128];
+        CTFontRef ctfont = CTFontCreateWithGraphicsFont(_titleFont, 14.0, &CGAffineTransformIdentity, nil);
+        CTFontGetGlyphsForCharacters(ctfont, (const unichar *)[winrec.title 
+                cStringUsingEncoding:NSUnicodeStringEncoding], glyphs, [winrec.title length]);
+        winrec.titleSize = [self sizeOfTitleText:winrec.title];
+        [winrec setGlyphs:glyphs];
+        winrec.titleSet = YES;
+    } else
+        winrec.titleSet = NO;
     winrec.icon = nil;
 
     winrec.shmPath = [NSString stringWithFormat:@"/%@/%u/win/%u", [app bundleID],
@@ -377,7 +387,6 @@
     }
 
     WSWindowRecord *winrec = [app windowWithID:data->windowID];
-    NSLog(@"windowModify %@ win %@", app, winrec);
     winrec.state = data->state;
     winrec.styleMask = data->style;
     // FIXME: this will probably require changing the surface and shm buffer
@@ -385,7 +394,19 @@
     int len = 0;
     while(data->title[len] != '\0' && len < sizeof(data->title)) ++len;
     winrec.title = [NSString stringWithCString:data->title length:len];
+    if(len > 0) {
+        CGGlyph glyphs[128];
+        CTFontRef ctfont = CTFontCreateWithGraphicsFont(_titleFont, 14.0, &CGAffineTransformIdentity, nil);
+        CTFontGetGlyphsForCharacters(ctfont, (const unichar *)[winrec.title 
+                cStringUsingEncoding:NSUnicodeStringEncoding], glyphs, [winrec.title length]);
+        winrec.titleSize = [self sizeOfTitleText:winrec.title];
+        [winrec setGlyphs:glyphs];
+        winrec.titleSet = YES;
+    } else
+        winrec.titleSet = NO;
     winrec.icon = nil;
+    if(logLevel >= WS_INFO)
+        NSLog(@"windowModify %@ win %@", app, winrec);
 }
 
 #define _cursor_height 24
@@ -396,9 +417,14 @@
     NSString *path = [[NSBundle mainBundle] pathForResource:@"arrowCursor" ofType:@"png"];
     NSData *cursorData = [NSData dataWithContentsOfFile:path];
     O2ImageSource *cursorIS = [O2ImageSource newImageSourceWithData:(__bridge CFMutableDataRef)cursorData
-                                                            options:nil];
+                                                            options:NULL];
     O2ImageRef cursor = [cursorIS createImageAtIndex:0 options:nil];
     NSRect cursorRect = NSMakeRect(0, 0, _cursor_height, _cursor_height);
+
+    _titleFont = CGFontCreateWithFontName((__bridge CFStringRef)@"Inter-Bold");
+    O2ContextSetFont(ctx, (__bridge O2Font *)_titleFont);
+    O2ContextSetFontSize(ctx, 14.0);
+    O2ContextSetTextDrawingMode(ctx, kO2TextFillStroke);
 
     struct pollfd fds;
     fds.fd = [input fileDescriptor];
@@ -417,6 +443,8 @@
             int count = [wins count];
             for(int i = 0; i < count; ++i) {
                 WSWindowRecord *win = [wins objectAtIndex:i];
+                if(win.state == HIDDEN)
+                    continue;
                 [win drawFrame:ctx];
                 [ctx drawImage:win.surface inRect:win.geometry];
             }
@@ -474,6 +502,7 @@
                 break;
             }
             case MSG_ID_INLINE:
+            {
                 switch(msg.msg.code) {
                     case CODE_ADD_RECENT_ITEM:
                         // FIXME: pass to SystemUIServer
@@ -567,47 +596,51 @@
                         // FIXME: send to SystemUIServer
 			break;
 		    }
-                }
-                case CODE_WINDOW_CREATE: {
-                    if(msg.msg.len != sizeof(struct mach_win_data)) {
-                        NSLog(@"Incorrect data size for WINDOW_CREATE");
+                    case CODE_WINDOW_CREATE: {
+                        if(msg.msg.len != sizeof(struct mach_win_data)) {
+                            NSLog(@"Incorrect data size for WINDOW_CREATE");
+                            break;
+                        }
+                        struct mach_win_data *data = (struct mach_win_data *)msg.msg.data;
+                        if(logLevel >= WS_INFO)
+                            NSLog(@"CODE_WINDOW_CREATE bundle %s pid %u ID %u", msg.msg.bundleID,
+                                    msg.msg.pid, data->windowID);
+                        WSAppRecord *app = [apps objectForKey:[NSString stringWithCString:msg.msg.bundleID]];
+                        if(app != nil) {
+                            struct mach_win_data reply;
+                            memcpy(&reply, data, sizeof(reply));
+                            reply.windowID = [self windowCreate:data forApp:app];
+                            [self sendInlineData:&reply
+                                          length:sizeof(struct mach_win_data)
+                                        withCode:CODE_WINDOW_CREATED
+                                           toApp:app];
+                            return;
+                        }
+                        NSLog(@"No matching app for WINDOW_CREATE! %s %u", msg.msg.bundleID, msg.msg.pid);
                         break;
                     }
-                    struct mach_win_data *data = (struct mach_win_data *)msg.msg.data;
-                    if(logLevel >= WS_INFO)
-                        NSLog(@"CODE_WINDOW_CREATE bundle %s pid %u ID %u", msg.msg.bundleID,
-                                msg.msg.pid, data->windowID);
-                    WSAppRecord *app = [apps objectForKey:[NSString stringWithCString:msg.msg.bundleID]];
-                    if(app != nil) {
-                        struct mach_win_data reply;
-                        memcpy(&reply, data, sizeof(reply));
-                        reply.windowID = [self windowCreate:data forApp:app];
-                        [self sendInlineData:&reply
-                                      length:sizeof(struct mach_win_data)
-                                    withCode:CODE_WINDOW_CREATED
-                                       toApp:app];
-                        return;
-                    }
-                    NSLog(@"No matching app for WINDOW_CREATE! %s %u", msg.msg.bundleID, msg.msg.pid);
-                    break;
-                }
-                case CODE_WINDOW_STATE: {
-                    if(msg.msg.len != sizeof(struct mach_win_data)) {
-                        NSLog(@"Incorrect data size for WINDOW_STATE");
+                    case CODE_WINDOW_STATE: {
+                        if(msg.msg.len != sizeof(struct mach_win_data)) {
+                            NSLog(@"Incorrect data size for WINDOW_STATE");
+                            break;
+                        }
+                        struct mach_win_data *data = (struct mach_win_data *)msg.msg.data;
+                        if(logLevel >= WS_INFO)
+                            NSLog(@"CODE_WINDOW_STATE bundle %s pid %u ID %u", msg.msg.bundleID,
+                                    msg.msg.pid, data->windowID);
+                        WSAppRecord *app = [apps objectForKey:[NSString stringWithCString:msg.msg.bundleID]];
+                        if(app != nil) {
+                            [self windowModify:data forApp:app];
+                            return;
+                        }
+                        NSLog(@"No matching app for WINDOW_STATE! %s %u", msg.msg.bundleID, msg.msg.pid);
                         break;
                     }
-                    struct mach_win_data *data = (struct mach_win_data *)msg.msg.data;
-                    if(logLevel >= WS_INFO)
-                        NSLog(@"CODE_WINDOW_STATE bundle %s pid %u ID %u", msg.msg.bundleID,
-                                msg.msg.pid, data->windowID);
-                    WSAppRecord *app = [apps objectForKey:[NSString stringWithCString:msg.msg.bundleID]];
-                    if(app != nil) {
-                        [self windowModify:data forApp:app];
-                        return;
-                    }
-                    NSLog(@"No matching app for WINDOW_STATE! %s %u", msg.msg.bundleID, msg.msg.pid);
-                    break;
+                    default:
+                        NSLog(@"Unhandled WindowServer code %u", msg.msg.code);
                 }
+                break;
+            }
         }
     }
 }
@@ -644,7 +677,7 @@
 - (WSWindowRecord *)windowUnderPointer:(NSPoint)pos app:(WSAppRecord **)app {
     NSEnumerator *appEnum = [apps objectEnumerator];
     while((*app = [appEnum nextObject]) != nil) {
-        NSMutableArray *windows = [*app windows];
+        NSArray *windows = [*app windows];
         for(int w = 0; w < [windows count]; ++w) {
             WSWindowRecord *win = [windows objectAtIndex:w];
             if(NSPointInRect(pos, win.frame))
@@ -865,6 +898,20 @@
 }
 
 -(void)signalQuit { ready = NO; }
+
+-(CGFontRef)titleFont {
+    return _titleFont;
+}
+
+-(NSSize)sizeOfTitleText:(NSString *)title {
+    NSDictionary *attrs = @{
+        NSFontAttributeName : [NSFont fontWithName:@"Inter" size:14.0], // FIXME: should be titleBarFontOfSize
+    };
+    NSAttributedString *atitle = [[NSAttributedString alloc] initWithString:title attributes:attrs];
+    NSSize size = [atitle size];
+    
+    return size;
+}
 
 @end
 

@@ -55,7 +55,10 @@ extern const float WSWindowControlSpacing;
 
 NSRect WSOutsetFrame(NSRect rect, int style);
 
-@interface WSWindowRecord : NSObject
+@interface WSWindowRecord : NSObject {
+    CGGlyph _titleGlyphs[128];          // AppKit can't pass anything longer
+}
+
 @property int number;                   // internal window ID
 @property void *surfaceBuf;             // mmaped shared graphics memory
 @property size_t bufSize;               // size of surfaceBuf (bytes)
@@ -64,6 +67,8 @@ NSRect WSOutsetFrame(NSRect rect, int style);
 @property NSRect geometry;              // position and size of client window
 @property NSRect frame;                 // position and size with decorations
 @property NSString *title;              // titlebar string
+@property NSSize titleSize;             // bounding box of glyphs
+@property BOOL titleSet;                // YES if ready to display title
 @property NSImage *icon;                // window icon
 @property NSString *shmPath;
 @property int styleMask;                // NSWindow style flags
@@ -75,6 +80,7 @@ NSRect WSOutsetFrame(NSRect rect, int style);
 -(void)setOrigin:(NSPoint)pos;
 -(void)drawFrame:(O2Context *)_context;
 -(void)moveByX:(double)x Y:(double)y;
+-(void)setGlyphs:(CGGlyph *)glyphs;
 
 @end
 
@@ -105,6 +111,7 @@ NSRect WSOutsetFrame(NSRect rect, int style);
     enum ShellType curShell;
     BSDFramebuffer *fb;
     NSRect _geometry;
+    CGFontRef _titleFont;
 
     WSInput *input;
 
@@ -137,4 +144,6 @@ NSRect WSOutsetFrame(NSRect rect, int style);
 -(void)watchForProcessExit:(unsigned int)pid;
 -(WSAppRecord *)findAppByPID:(unsigned int)pid;
 -(void)signalQuit;
+-(CGFontRef)titleFont;
+-(NSSize)sizeOfTitleText:(NSString *)title;
 @end

@@ -33,9 +33,9 @@
 
 // all measurements in pixels
 const float WSWindowTitleHeight = 32;
-const float WSWindowEdgePad = 6;
+const float WSWindowEdgePad = 3;
 const float WSWindowCornerRadius = 12;
-const float WSWindowControlDiameter = 15;
+const float WSWindowControlDiameter = 14;
 const float WSWindowControlSpacing = 10;
 
 NSRect WSOutsetFrame(NSRect rect, int style) {
@@ -94,8 +94,8 @@ NSRect WSOutsetFrame(NSRect rect, int style) {
 
     // window controls
     CGRect button = NSMakeRect(_frame.origin.x + WSWindowControlSpacing,
-            _frame.origin.y + _frame.size.height - (WSWindowTitleHeight / 2),
-            WSWindowControlDiameter, WSWindowControlDiameter);
+        _frame.origin.y + _frame.size.height - WSWindowTitleHeight / 2 - WSWindowControlDiameter / 2,
+        WSWindowControlDiameter, WSWindowControlDiameter);
     _closeButtonRect = button;
     O2ContextSetRGBFillColor(_context, 1, 0, 0, 1);
     O2ContextFillEllipseInRect(_context, button);
@@ -110,19 +110,11 @@ NSRect WSOutsetFrame(NSRect rect, int style) {
 
     // title
     if(_title) {
-        NSDictionary *attrs = @{
-            NSFontAttributeName : [NSFont systemFontOfSize:15.0], // FIXME: should be titleBarFontOfSize
-            NSForegroundColorAttributeName : [NSColor whiteColor],
-            NSBackgroundColorAttributeName : [NSColor redColor]
-        };
-        NSAttributedString *title = [[NSAttributedString alloc] initWithString:_title attributes:attrs];
-        NSSize size = [title size];
-        NSRect titleRect = NSMakeRect(
-            _frame.origin.x + (_frame.size.width / 2 - size.width / 2),
-            _frame.origin.y + (_frame.size.height - WSWindowTitleHeight + size.height / 2),
-            size.width,
-            size.height + 4);
-        [title drawInRect:titleRect];
+        O2ContextSetRGBFillColor(_context, 0, 0, 0, 1);
+        O2ContextSetRGBStrokeColor(_context, 0, 0, 0, 1);
+        float x = _frame.origin.x + _frame.size.width / 2 - _titleSize.width / 2;
+        float y = _frame.origin.y + _frame.size.height - WSWindowTitleHeight / 3 - _titleSize.height / 2;
+        O2ContextShowGlyphsAtPoint(_context, x, y, _titleGlyphs, [_title length]);
     }
 }
 
@@ -136,6 +128,12 @@ NSRect WSOutsetFrame(NSRect rect, int style) {
     _geometry.origin.x += x;
     _geometry.origin.y += y;
     _frame = WSOutsetFrame(_geometry, _styleMask);
+}
+
+-(void)setGlyphs:(CGGlyph *)glyphs {
+    memset(_titleGlyphs, 0, sizeof(_titleGlyphs));
+    for(int i = 0; i < [_title length]; ++i)
+        _titleGlyphs[i] = glyphs[i];
 }
 
 @end

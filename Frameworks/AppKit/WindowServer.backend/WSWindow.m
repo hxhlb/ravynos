@@ -236,9 +236,11 @@ void CGNativeBorderFrameWidthsForStyle(unsigned styleMask,CGFloat *top,CGFloat *
     NSUnimplementedMethod();
 }
 
+-(void)showWindowWithoutActivation {
+}
+
 -(void) hideWindow
 {
-    _mapped=NO;
 }
 
 -(void) placeAboveWindow:(int)otherNumber
