@@ -330,14 +330,6 @@ static void drawSunkenBorder(NSRect rect){
    if(topLeft.x<NSMinX(screenVisible))
     topLeft.x=NSMinX(screenVisible);
 
-#if 0
-    // Wayland hack: our WLWindowPopUp is a subsurface that is attached
-    // to the parent surface, so its x,y are relative to that, not the
-    // screen frame. FIXME: find a better way to do this.
-    topLeft.x -= screenVisible.origin.x;
-    topLeft.y = -1; // this is the bottom of the menubar frame
-#endif
-
   [branch setFrameTopLeftPoint:topLeft];
 }
 
@@ -349,7 +341,7 @@ static void drawSunkenBorder(NSRect rect){
 
     [self positionBranchForSelectedItem:branch screen:screen];
 
-    [branch setParent:[self window]];
+    NSLog(@"1 positionBranch returned, calling orderFront with %@", branch);
     [branch orderFront:nil];
     return [branch menuView];
    }
@@ -363,7 +355,7 @@ static void drawSunkenBorder(NSRect rect){
 
       [self positionBranchForSelectedItem:branch screen:screen];
 
-      [branch setParent:[self window]];
+    NSLog(@"2 positionBranch returned, calling orderFront with %@", branch);
       [branch orderFront:nil];
       return [branch menuView];
      }

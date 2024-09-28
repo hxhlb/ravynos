@@ -89,11 +89,12 @@ SOFTWARE. */
                                    windowNumber:(int)number] autorelease];
 }
 
--(CGWindow *)panelWithFrame:(NSRect)frame styleMask:(unsigned)styleMask backingType:(unsigned)backingType screen:(NSScreen *)screen { // FIXME: screen is currently ignored
+-(CGWindow *)panelWithFrame:(NSRect)frame styleMask:(unsigned)styleMask backingType:(unsigned)backingType windowNumber:(int)number screen:(NSScreen *)screen { // FIXME: screen is currently ignored
 	return [[[WSWindow alloc] initWithFrame:frame
                                       styleMask:styleMask
                                         isPanel:YES
-                                    backingType:backingType] autorelease];
+                                    backingType:backingType
+                                   windowNumber:(int)number] autorelease];
 }
 
 -(NSColor *)colorWithName:(NSString *)colorName {

@@ -697,7 +697,7 @@
      * Otherwise, identify the window (if any) that is under the pointer. Windows on macOS
      * seem to receive mouse and scroll inputs when not the active window.
      */
-    WSAppRecord *app = nil;
+    WSAppRecord *app = curApp;
     WSWindowRecord *window = nil;
     if(event->code == NSKeyDown || event->code == NSKeyUp)
         event->windowID = curWindow.number; 
@@ -768,13 +768,13 @@
         }
     }
 
-    if(curApp == nil)
+    if(app == nil)
         return YES;
 
     return [self sendInlineData:event
                          length:sizeof(struct mach_event)
                        withCode:CODE_INPUT_EVENT
-                          toApp:curApp];
+                          toApp:app];
 }
 
 - (void)updateClientWindowState:(WSWindowRecord *)window {

@@ -180,7 +180,9 @@ void CGNativeBorderFrameWidthsForStyle(unsigned styleMask,CGFloat *top,CGFloat *
 
 -(void) invalidateContextsWithNewSize:(NSSize)size forceRebuild:(BOOL)forceRebuild
 {
-    O2Image *snapshot = O2BitmapContextCreateImage(_context);
+    O2Image *snapshot = nil;
+    if(_context)
+        snapshot = O2BitmapContextCreateImage(_context);
     NSSize oldSize = _frame.size;
 
     if(!NSEqualSizes(_frame.size,size) || forceRebuild) {
@@ -197,8 +199,10 @@ void CGNativeBorderFrameWidthsForStyle(unsigned styleMask,CGFloat *top,CGFloat *
     }
 
     [self cgContext];
-    [_context drawImage:snapshot inRect:NSMakeRect(0,0,oldSize.width,oldSize.height)];
-    [snapshot release];
+    if(snapshot) {
+        [_context drawImage:snapshot inRect:NSMakeRect(0,0,oldSize.width,oldSize.height)];
+        [snapshot release];
+    }
     [_delegate platformWindowDidInvalidateCGContext:self];
 
     //CGLSurfaceResize(_cglContext, size.width, size.height);

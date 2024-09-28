@@ -61,6 +61,7 @@
 }
 
 -(void)mouseMoved:(NSEvent *)e {
+    NSLog(@"mouseMoved %@", e);
 }
 
 @end

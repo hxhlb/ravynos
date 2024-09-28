@@ -213,14 +213,19 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
                                 break;
                             }
                             memcpy(&me, msg.data, msg.len);
+                            NSWindow *window = (me.windowID == 0)
+                                ? [self mainWindow]
+                                : [self windowWithWindowNumber:me.windowID];
+                            // translate screen to window coords
+                            me.x -= [window frame].origin.x;
+                            me.y -= [window frame].origin.y;
                             switch(me.code) {
                                 case NSKeyUp:
                                 case NSKeyDown: {
                                     NSEvent *e = [NSEvent keyEventWithType:me.code
                                                   location:NSMakePoint(me.x, me.y)
                                              modifierFlags:me.mods
-                                                    window:me.windowID == 0 ? [self mainWindow]
-                                                                            : [self windowWithWindowNumber:me.windowID]
+                                                    window:window
                                                 characters:[[NSString alloc] initWithUTF8String:me.chars]
                                charactersIgnoringModifiers:[[NSString alloc] initWithUTF8String:me.charsIg]
                                                  isARepeat:me.repeat
@@ -232,7 +237,7 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
                                     NSEvent *e = [NSEvent mouseEventWithType:me.code
                                                         location:NSMakePoint(me.x, me.y)
                                                modifierFlags:me.mods
-                                                      window:[self windowWithWindowNumber:me.windowID]
+                                                      window:window
                                                       clickCount:0
                                                       deltaX:me.dx
                                                       deltaY:me.dy];
@@ -244,9 +249,9 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
                                 case NSRightMouseDown:
                                 case NSRightMouseUp: {
                                     NSEvent *e = [NSEvent mouseEventWithType:me.code
-                                                    location:[_display mouseLocation]
+                                                    location:NSMakePoint(me.x, me.y)
                                                modifierFlags:me.mods
-                                                      window:[self windowWithWindowNumber:me.windowID]
+                                                      window:window
                                                   clickCount:1
                                                       deltaX:me.dx
                                                       deltaY:me.dy];
@@ -1012,6 +1017,9 @@ static int _tagAllMenus(NSMenu *menu, int tag) {
 }
 
 -(void)sendEvent:(NSEvent *)event {
+    if(event == nil)
+        return;
+
    if([event type]==NSKeyDown){
     unsigned modifierFlags=[event modifierFlags];
 

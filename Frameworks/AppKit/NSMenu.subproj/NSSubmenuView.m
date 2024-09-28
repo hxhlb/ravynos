@@ -294,6 +294,7 @@ static NSRect boundsToTitleAreaRect(NSRect rect){
 }
 
 -(void)positionBranchForSelectedItem:(NSWindow *)branch window:(NSWindow *)window screen:(NSScreen *)screen {
+    NSLog(@"NSSubmenuView positionBranchForSelectedItem branch=%@ window=%@", branch, window);
    NSRect   branchFrame=[branch frame];
    NSRect   windowFrame=[window frame];
    NSRect   screenVisible=[screen visibleFrame];
@@ -347,13 +348,15 @@ static NSRect boundsToTitleAreaRect(NSRect rect){
     topLeft.x=redo.x;
    }
 
-    topLeft.y -= windowFrame.origin.y;
-    topLeft.x -= windowFrame.origin.x;
+//    topLeft.y -= windowFrame.origin.y;
+//    topLeft.x -= windowFrame.origin.x;
 
+   NSLog(@"setting branch frame %@", NSStringFromPoint(topLeft));
    [branch setFrameTopLeftPoint:topLeft];
 }
 
 -(NSMenuView *)viewAtSelectedIndexPositionOnScreen:(NSScreen *)screen {
+    NSLog(@"NSSubmenuView viewAtSelectedIndexPositionOnScreen");
    NSArray *items=[self visibleItemArray];
 
    if(_selectedItemIndex<[items count]){
@@ -364,7 +367,6 @@ static NSRect boundsToTitleAreaRect(NSRect rect){
 
      [self positionBranchForSelectedItem:branch window:[self window] screen:screen];
 
-     [branch setParent:[self window]];
      [branch orderFront:nil];
      return [branch menuView];
     }

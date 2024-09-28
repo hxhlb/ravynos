@@ -101,7 +101,7 @@ enum {
    return [screens objectAtIndex:0];// should not happen
 }
 
-#if 0
+#if 1
 #define MENUDEBUG(...) NSLog(__VA_ARGS__)
 #else
 #define MENUDEBUG(...)
@@ -209,9 +209,11 @@ const float kMouseMovementThreshold = .001f;
                         }
                         
                         // And now select the new item
+                        MENUDEBUG(@"about to setSelectedItemIndex");
                         [checkView setSelectedItemIndex:itemIndex];
                         
                         // If it's got a cascading menu then push that on the stack
+                        MENUDEBUG(@"pushing new branch with viewAtSelectedIndexPositionOnScreen:%@", screen);
                         if((branch=[checkView viewAtSelectedIndexPositionOnScreen:screen])!=nil) {
                             MENUDEBUG(@"adding a new cascading view: %@", branch);
                             [viewStack addObject:branch];

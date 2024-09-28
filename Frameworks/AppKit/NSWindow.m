@@ -443,7 +443,7 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
 -(void)_createPlatformWindowOnMainThread {
 	if(_platformWindow==nil){
 		if([self isKindOfClass:[NSPanel class]])
-			_platformWindow=[[[NSDisplay currentDisplay] panelWithFrame: _frame styleMask:_styleMask backingType:_backingType screen:_preferredScreen] retain];
+                        _platformWindow=[[[NSDisplay currentDisplay] panelWithFrame: _frame styleMask:_styleMask backingType:_backingType windowNumber:(int)self screen:_preferredScreen] retain];
 		else
                         _platformWindow=[[[NSDisplay currentDisplay] windowWithFrame: _frame styleMask:_styleMask backingType:_backingType windowNumber:(int)self screen:_preferredScreen] retain];
 		
@@ -949,6 +949,7 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
 
    [_backgroundView setFrameSize:_frame.size];
     
+   if(_platformWindow)
     [[self platformWindow] setFrame:_frame];
     
    if(didSize)
@@ -3278,7 +3279,7 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
 
     if(_styleMask != data->style)
         [self setStyleMask:data->style];
-    [self setFrame:geom];
+    [self setFrame:geom display:YES];
 }
 
 @end
