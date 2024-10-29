@@ -1,0 +1,30 @@
+name: Upstream Sync
+
+permissions:
+  contents: write
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # every day
+  workflow_dispatch:
+
+jobs:
+  merge:
+    name: Sync latest commits from upstream repo
+    runs-on: ubuntu-latest
+    if: github.event.repository.owner.id == github.event.sender.id
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Checkout target repo
+        run: |
+          git config --global user.name 'Hades'
+          git config --global user.email 'wzawzpopo@qq.com'
+          git pull --unshallow
+          git remote add upstream https://github.com/ravynsoft/ravynos
+          git fetch upstream
+          git checkout main
+          git merge --no-edit upstream/main
+          git push origin main
+          git fetch upstream --tags
+          git push --tags
